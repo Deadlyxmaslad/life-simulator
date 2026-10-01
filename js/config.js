@@ -203,15 +203,32 @@ Game.config = {
       gradeBias: { rocket: [65, 99], elite: [50, 92], regular: [28, 88] }, // 同学成绩分布（随档次水涨船高）
       genderFemaleRatio: 0.5,
     },
-    // 互动活动：effects 走 applyEffects（source: '班级·活动名'），affinity 为好感增量；
-    // cd 为对同一位同学同一活动的冷却（月）；cond(p, mate) 不满足则该按钮置灰
+    // 互动活动（v2.6.0 按学段分级）：effects 走 applyEffects（source: '班级·活动名'），
+    // affinity 为好感增量；cd 为对同一位同学同一活动的冷却（月）；
+    // stages 限定学段（缺省 = 全学段可做），cond(p, mate) 不满足则按钮置灰。
+    // 低年级玩、高年级学——活动的样子随年级长而变。
     classActivities: [
-      { id: 'study',   emoji: '📖', name: '一起学习',   cd: 2, affinity: 5,  effects: { knowledge: 3, mood: -1 } },
+      // —— 全学段通用 ——
       { id: 'chat',    emoji: '💬', name: '课间闲聊',   cd: 1, affinity: 6,  effects: { mood: 3, stress: -3 } },
       { id: 'sport',   emoji: '⚽', name: '一起运动',   cd: 2, affinity: 8,  effects: { mood: 4, health: 2, immunity: 1, stress: -4 } },
       { id: 'ask',     emoji: '🙋', name: '请教问题',   cd: 3, affinity: 3,  effects: { knowledge: 5, mood: -1 }, cond: (p, m) => m.grade >= 80, condTip: '只教成绩好的同学' },
       { id: 'gift',    emoji: '🎁', name: '送个小礼物', cd: 6, affinity: 14, effects: { mood: 2, wealth: -0.5 }, cond: (p) => Game.state.s.clock.age >= 8 && p.wealth >= 1, condTip: '8 岁起且钱包有余' },
       { id: 'befriend', emoji: '🤝', name: '结为好友',   special: 'befriend' },
+      // —— 幼儿园（3-6 岁）：玩就是正经事 ——
+      { id: 'toy',      emoji: '🧸', name: '分享玩具',   cd: 1, affinity: 8, effects: { mood: 4 }, stages: ['kg'] },
+      { id: 'playhouse', emoji: '🏠', name: '玩过家家',   cd: 2, affinity: 9, effects: { mood: 5, stress: -2 }, stages: ['kg'] },
+      // —— 小学（6-12 岁）——
+      { id: 'homework', emoji: '✏️', name: '一起写作业', cd: 2, affinity: 5, effects: { knowledge: 3, mood: 1 }, stages: ['primary'] },
+      { id: 'rope',     emoji: '🪢', name: '跳绳踢毽子', cd: 1, affinity: 7, effects: { health: 2, mood: 3 }, stages: ['primary'] },
+      { id: 'study',    emoji: '📖', name: '一起学习',   cd: 2, affinity: 5, effects: { knowledge: 3, mood: -1 }, stages: ['primary', 'junior', 'senior', 'vocational'] },
+      // —— 初中（12-15 岁）——
+      { id: 'ball',     emoji: '🏀', name: '放学打球',   cd: 2, affinity: 8, effects: { health: 3, mood: 4, stress: -3 }, stages: ['junior', 'senior'] },
+      { id: 'gossip',   emoji: '🤫', name: '聊小八卦',   cd: 1, affinity: 6, effects: { mood: 4, stress: -2 }, stages: ['junior', 'senior', 'vocational'] },
+      // —— 高中（15-18 岁）——
+      { id: 'cram',     emoji: '📚', name: '一起刷题',   cd: 2, affinity: 4, effects: { knowledge: 5, mood: -2 }, stages: ['senior'] },
+      { id: 'walk',     emoji: '🌇', name: '操场散步谈心', cd: 3, affinity: 9, effects: { mood: 5, stress: -5 }, stages: ['senior', 'vocational'] },
+      // —— 中职（15-18 岁）——
+      { id: 'practice', emoji: '🔧', name: '一起练手艺', cd: 2, affinity: 7, effects: { knowledge: 4 }, stages: ['vocational'] },
     ],
 
     // 学习/考试如何受其它系统影响（可扩展的耦合点）
@@ -243,6 +260,24 @@ Game.config = {
       '博士':  [['研究员', 30], ['高校教师', 24], ['首席科学家', 40]],
       '—':     [['临时零工', 3], ['拾荒度日', 1.5]],
     },
+    // —— 职场同事名册与互动（v2.6.0，比照班级名册模式）——
+    officeSize: [12, 28],        // 同事人数区间（一个部门/办公室的常见规模）
+    colleague: {
+      friendAffinity: 65,        // 好感达到可结为好友
+      skillRange: [35, 95],      // 同事业务能力分布
+      yearsRange: [0, 20],       // 同事工龄分布
+    },
+    // 职场互动：source 走 '职场·活动名'（命中"事业"故事线关键词）；
+    // special: 'refer' 托同事引荐（埋 network 伏笔，与「老熟人递来机会」内推事件闭环）
+    officeActivities: [
+      { id: 'lunch',  emoji: '🍱', name: '一起吃午饭', cd: 1, affinity: 6,  effects: { mood: 3, stress: -3, wealth: -0.3 } },
+      { id: 'gossip', emoji: '🤫', name: '摸鱼聊八卦', cd: 2, affinity: 7,  effects: { mood: 4, stress: -4 } },
+      { id: 'advice', emoji: '🙋', name: '请教业务',   cd: 3, affinity: 4,  effects: { knowledge: 4 }, cond: (p, m) => m.skill >= 80, condTip: '只教能力强的同事' },
+      { id: 'collab', emoji: '🤝', name: '协作赶项目', cd: 3, affinity: 8,  effects: { wealth: 3, knowledge: 2, stress: 4, mood: -1 } },
+      { id: 'tea',    emoji: '🧋', name: '请喝杯奶茶', cd: 6, affinity: 12, effects: { mood: 2, wealth: -0.5 } },
+      { id: 'refer',  emoji: '📨', name: '托他引荐机会', special: 'refer' },
+      { id: 'befriend', emoji: '🤝', name: '结为好友', special: 'befriend' },
+    ],
   },
 
   // ================= 财务 =================

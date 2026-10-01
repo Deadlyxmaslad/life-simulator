@@ -320,8 +320,10 @@
   function actById(id) {
     return (ED.classActivities || []).find((a) => a.id === id) || null;
   }
-  // 活动当前是否可做（冷却 + cond）；返回 null 表示可用，否则返回不可用原因
+  // 活动当前是否可做（学段 + 冷却 + cond）；返回 null 表示可用，否则返回不可用原因
   function activityBlocker(act, p, mate) {
+    const ed = st.s.person.education;
+    if (act.stages && (!ed || act.stages.indexOf(ed.stage) < 0)) return '这个年级不这么玩';
     const last = mate.cd[act.id];
     if (last != null && monthIdx() - last < (act.cd || 1)) return '冷却中（还差 ' + ((act.cd || 1) - (monthIdx() - last)) + ' 个月）';
     if (act.cond) {

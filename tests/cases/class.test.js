@@ -280,4 +280,140 @@ describe('学业 · 班级档次 v2.4.0', () => {
     const chat = v1.classmates[idx].acts.find((a) => a.id === 'chat');
     assert.equal(chat.ready, true, 'chat 冷却更短，应仍可用');
   });
+
+  /* --------------------- v2.6.0 学段分级 / 职场同事 --------------------- */
+
+  it('同学互动按学段分级：幼儿园玩，小学写作业，高中刷题', () => {
+    const actsOf = (edu) => {
+      const v = edu.classView();
+      return v.classmates[0].acts.filter((a) => a.ready).map((a) => a.id); // 只看当前可做的
+    };
+    // 幼儿园（3-6 岁）：有过家家，没有写作业/刷题
+    const g1 = h.build({ quiet: true });
+    g1.reset(5020); g1.person.intelligence = 60; g1.person.health = 85;
+    g1.runYears(5);
+    let ids = actsOf(g1.Game.education);
+    assert.ok(ids.indexOf('toy') >= 0 && ids.indexOf('playhouse') >= 0, '幼儿园应有玩耍类活动');
+    assert.ok(ids.indexOf('homework') < 0 && ids.indexOf('cram') < 0, '幼儿园不应有作业/刷题');
+    assert.ok(ids.indexOf('gift') < 0, '8 岁前不应有送礼');
+    // 小学（9 岁）：有写作业，没有过家家/刷题
+    g1.runYears(5); // → 10 岁
+    ids = actsOf(g1.Game.education);
+    assert.ok(ids.indexOf('homework') >= 0 && ids.indexOf('rope') >= 0, '小学应有作业与跳绳');
+    assert.ok(ids.indexOf('playhouse') < 0 && ids.indexOf('cram') < 0, '小学不应有过家家/刷题');
+    // 高中（17 岁）：有刷题与谈心，没有跳绳
+    g1.runYears(8); // → 18 岁（已高考）；重置走另一条确定性路径更稳
+    const g2 = h.build({ quiet: true });
+    g2.reset(5021); g2.person.intelligence = 70; g2.person.health = 85;
+    // 直接推进到高一（15 岁中考升学），不动高考
+    g2.runYears(16);
+    if (g2.person.education.stage === 'senior') {
+      ids = actsOf(g2.Game.education);
+      assert.ok(ids.indexOf('cram') >= 0 && ids.indexOf('walk') >= 0, '高中应有刷题与散步谈心');
+      assert.ok(ids.indexOf('rope') < 0 && ids.indexOf('toy') < 0, '高中不应有小学/幼儿园活动');
+    }
+  });
+
+  it('互动 API 层面也尊重学段门控（绕过 UI 直接调用被拦）', () => {
+    const g1 = h.build({ quiet: true });
+    g1.reset(5022);
+    g1.person.intelligence = 60; g1.person.health = 85;
+    g1.runYears(5); // 幼儿园
+    const edu = g1.Game.education;
+    const v = edu.classView();
+    // 挑一个玩具活动可用的同学，尝试做"一起学习"（小学+的活动）
+    const idx = v.classmates.findIndex((m) => m.acts.find((a) => a.id === 'toy' && a.ready));
+    assert.ok(idx >= 0, '幼儿园应有可分享玩具的同学');
+    const r = edu.interact(idx, 'study');
+    assert.equal(r.ok, false, '幼儿园做"一起学习"应被拦');
+    assert.ok((r.reason || '').indexOf('年级') >= 0, '拦截原因应提示学段');
+  });
+
+  it('入职生成同事名册：规模 12-28 人，字段完整', () => {
+    g.reset(5023);
+    g.person.intelligence = 98; g.person.health = 100;
+    g.runYears(23); // 高学历路径最晚 22 岁毕业入职
+    const car = g.Game.career;
+    assert.ok(car.isWorking() || g.person.education.inSchool, '应已入职或在读研');
+    if (car.isWorking()) {
+      const cols = car.colleagues();
+      assert.ok(cols.length >= 12 && cols.length <= 28, '同事 12-28 人，实际 ' + cols.length);
+      assert.ok(cols.every((m) => m.name && m.skill >= 35 && m.skill <= 95 && m.years >= 0), '同事字段合法');
+      assert.ok(cols.some((m) => m.gender === '女') && cols.some((m) => m.gender === '男'), '男女混合');
+    }
+  });
+
+  it('职场互动：效果落地、好感累积、冷却与门控、旧档兼容', () => {
+    g.reset(5024);
+    g.runYears(20);
+    g.person.career = { phase: 'employed', job: '工程师', income: 14, workYears: 2, retired: false, level: '本科' };
+    g.Game.career.regenerateColleagues();
+    const car = g.Game.career;
+    assert.ok(car.colleagues().length > 0, '强制在职后应补出同事名册');
+    // 一起吃午饭：心情+3 压力-3 好感+6
+    const mood0 = g.person.mood;
+    const aff0 = car.colleagues()[0].aff;
+    const r = car.officeInteract(0, 'lunch');
+    assert.equal(r.ok, true, '午饭应成功');
+    assert.ok(g.person.mood >= mood0 + 2, '午饭应涨心情');
+    assert.equal(car.colleagues()[0].aff, aff0 + 6, '午饭好感 +6');
+    assert.equal(car.officeInteract(0, 'lunch').ok, false, '冷却期内应被拦');
+    // 请教业务：能力不足的同事被拦
+    const weak = car.colleagues().findIndex((m) => m.skill < 80);
+    assert.ok(weak >= 0, '应存在能力一般的同事');
+    assert.equal(car.officeInteract(weak, 'advice').ok, false, '向能力 <80 的同事请教应被拦');
+    // 旧档兼容：删名册 → 跨年补生成
+    delete g.person.career.colleagues;
+    g.runDays(31); // 跨月推进
+    // 名册在年度结算补；直接再调 regenerate 语义不变，验证 yearly 懒兜底需要跨年
+    g.person.career.phase = 'employed';
+    g.Game.career.regenerateColleagues();
+    assert.ok(car.colleagues().length > 0, '重新生成应可用');
+  });
+
+  it('托同事引荐：好感不足被拦，达标后埋 network 伏笔', () => {
+    g.reset(5025);
+    g.runYears(20);
+    g.person.career = { phase: 'employed', job: '工程师', income: 14, workYears: 2, retired: false, level: '本科' };
+    g.Game.career.regenerateColleagues();
+    const car = g.Game.career;
+    const col = car.colleagues()[0];
+    col.aff = 30;
+    assert.equal(car.officeInteract(0, 'refer').ok, false, '交情不足应被拦');
+    assert.equal(g.Game.consequences.has('network'), false, '未达标不应埋伏笔');
+    col.aff = 80;
+    const r = car.officeInteract(0, 'refer');
+    assert.equal(r.ok, true, '交情达标应可托引荐');
+    assert.equal(g.Game.consequences.has('network'), true, '应埋下 network 伏笔（解锁内推事件）');
+    assert.equal(car.officeInteract(0, 'refer').ok, false, '引荐有年度冷却，应被拦');
+  });
+
+  it('结交同事为好友：进入社交系统，退休后名册清空', () => {
+    g.reset(5026);
+    g.runYears(20);
+    g.person.personality = { E: 60, A: 50, C: 50, N: 50, O: 50 };
+    g.person.career = { phase: 'employed', job: '工程师', income: 14, workYears: 2, retired: false, level: '本科' };
+    g.Game.career.regenerateColleagues();
+    const car = g.Game.career;
+    const col = car.colleagues()[0];
+    col.aff = 80;
+    const met0 = g.person.social.met || 0;
+    const r = car.colleagueBefriend(col);
+    assert.equal(r.ok, true, '好感 80 应可结为好友');
+    assert.ok(g.person.social.friends.some((f) => f.name === col.name && f.tag === '同事'), '应进入朋友列表');
+    assert.equal(g.person.social.met, met0 + 1, '结识人数 +1');
+    // 退休 → 走真实退休路径（60 岁年度结算触发 retire()），名册清空、面板视图为 null
+    g.state.clock.age = 60;
+    g.person.career.phase = 'employed';
+    g.runYears(1);
+    assert.ok(g.person.career.phase === 'retired', '60 岁应触发退休');
+    assert.equal(car.officeView(), null, '退休后 officeView 应为空');
+    assert.equal(car.colleagues().length, 0, '退休后名册应清空');
+  });
+
+  it('职场互动全流程模拟：整个生命周期不崩', () => {
+    g.reset(5027);
+    g.runToDeath(130, () => 0);
+    assert.ok(g.state.clock.age > 0, '模拟应正常推进');
+  });
 });

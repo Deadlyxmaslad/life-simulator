@@ -10,7 +10,7 @@
  * 注意：file:// 协议下浏览器不注册 SW，游戏在 file:// 下依旧双击可玩，
  *       本文件因此在 file:// 场景下完全不会被加载，不影响单机体验。
  * ========================================================================= */
-const CACHE = 'lifesim-v2.5.0';
+const CACHE = 'lifesim-v2.6.0';
 
 const ASSETS = [
   './',
@@ -64,6 +64,8 @@ const ASSETS = [
   './js/ui/layout.js',
   './js/ui/panels.js',
   './js/ui/habitPanel.js',
+  './js/ui/classPanel.js',
+  './js/ui/officePanel.js',
   './js/ui/consumePanel.js',
   './js/ui/apPanel.js',
   './js/ui/contractPanel.js',
