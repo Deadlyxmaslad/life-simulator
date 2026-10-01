@@ -243,6 +243,9 @@ describe('核心 · 主循环', () => {
   it('pendingDecision 存在时 step 冻结推进（不推进时间）', () => {
     g.reset(108);
     g.runYears(20);
+    // 本测试验证的是"冻结/恢复"，与主角生死无关——随机序列变化可能让这局早夭，
+    // 强制存活以保证 step 可推进（死亡冻结由下一条用例专门覆盖）。
+    g.state.person.alive = true;
     const before = g.state.clock.tick;
     g.state.pendingDecision = { ev: { id: 'probe', choices: [] }, age: g.state.clock.age };
     g.Game.loop.step();

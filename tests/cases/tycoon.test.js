@@ -133,6 +133,9 @@ describe('💰 神壕（tycoon）· 财富类外挂', () => {
   it('注入资金不被 career 年度个税吃掉（个税只对收入征收）', () => {
     g.reset(6720);
     g.runYears(24);
+    // 本测试验证"注入的钱不被按净资产比例抽税"。班级系统的考试加成可能改变该种子下的
+    // 升学路径（24 岁仍在读研/复读），与断言无关——强制在职以聚焦真正要验证的行为。
+    g.person.career = { phase: 'employed', job: '工程师', income: 14, workYears: 2, retired: false, level: '本科' };
     assert.ok(G.career.isWorking(), '此阶段应在职');
     const balance = 3000;
     g.person.wealth = balance;

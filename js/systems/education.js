@@ -71,8 +71,15 @@
 
     // 在学者：每年积累学识，并推进年级
     if (ed.inSchool) {
-      p.knowledge += ED.study.knowledgePerYear;
+      const tier = currentClass();
+      p.knowledge += ED.study.knowledgePerYear * (tier && tier.knowledgeMul ? tier.knowledgeMul : 1);
       ed.grade = age - ed.stageStartAge + 1;
+      // 高档班的代价：节奏快、同辈卷（mood 小幅侵蚀，压力缓慢累积）
+      if (tier && tier.yearlyMood) st.changeVital('mood', tier.yearlyMood, tier.name + '节奏快');
+      if (tier && tier.yearlyStress && p.mental) {
+        p.mental.stress = Math.round(u.clamp(p.mental.stress + tier.yearlyStress, 0, 100));
+      }
+      annualClassReview(age);
     }
 
     const prog = ED.progress[ed.stage];
@@ -124,7 +131,8 @@
     const p = st.s.person;
     const ed = p.education;
     const g = ED.gaokao;
-    const score = Math.round(p.intelligence + p.knowledge * 0.5 + u.gauss(0, ED.study.noise));
+    const tier = currentClass(); // 毕业班的班级档次直接影响高考发挥（见 classTiers.gaokaoBonus）
+    const score = Math.round(p.intelligence + p.knowledge * 0.5 + (tier && tier.gaokaoBonus ? tier.gaokaoBonus : 0) + u.gauss(0, ED.study.noise));
 
     if (score >= g.bachelorLine) {
       setStage('college', age);
@@ -146,14 +154,16 @@
   }
 
   /* ------------------------- 通用升学判定 ------------------------- */
-  // 成功率受智力、健康、学识加成；返回是否通过
+  // 成功率受智力、健康、学识加成；返回是否通过（班级档次额外加分）
   function examPass(baseP) {
     const p = st.s.person;
     const s = ED.study;
+    const tier = currentClass();
     const boost =
       (p.intelligence - 55) * 0.006 * s.iqWeight +
       (p.health - 60) * 0.002 * s.healthWeight +
-      (p.knowledge - 30) * 0.0006;
+      (p.knowledge - 30) * 0.0006 +
+      (tier && tier.examBonus ? tier.examBonus : 0);
     return u.chance(u.clamp(baseP + boost, 0.03, 0.96));
   }
 
@@ -174,7 +184,100 @@
       // 毕业/进入社会：为未来的职业系统留出接入点
       bus.emit('education:graduated', { age: st.s.clock.age, level: highestLevel(p) });
     }
+    // 班级（v2.4.0）：进入可分班阶段时按成绩分班；升入不分班阶段（大学以上）则清空
+    if (ed.inSchool && (ED.classStages || []).indexOf(key) >= 0) {
+      assignClass(ED.stages[key].name + '入学分班');
+    } else {
+      ed.classKey = null;
+      ed.classScore = null;
+    }
     bus.emit('education:change', { stage: key });
+  }
+
+  /* ------------------------- 班级档次（v2.4.0） ------------------------- */
+  const CL = ED.classPlacement || { iqWeight: 1, knowledgeWeight: 0.6, healthWeight: 0.15, noise: 6 };
+  function tiers() { return ED.classTiers || []; }
+  function tierByKey(key) {
+    return tiers().find((t) => t.key === key) || null;
+  }
+  // 分班成绩：智力为主，健康微调，学识按"相对同时长普通学生的进步度"计 ±有界加成
+  function placementScore() {
+    const p = st.s.person;
+    const expected = (st.s.clock.age - 3) * (ED.study.knowledgePerYear || 4);
+    const effort = expected > 0
+      ? u.clamp((p.knowledge || 0) / expected - 1, -1, 1) * (CL.knowledgeBonus != null ? CL.knowledgeBonus : 15)
+      : 0;
+    return Math.round((
+      p.intelligence * (CL.iqWeight != null ? CL.iqWeight : 1) +
+      ((p.health || 60) - 60) * (CL.healthWeight != null ? CL.healthWeight : 0.15) +
+      effort +
+      u.gauss(0, CL.noise != null ? CL.noise : 6)
+    ) * 10) / 10;
+  }
+  function tierOfScore(score) {
+    const list = tiers();
+    if (!list.length) return null;
+    for (const t of list) if (score >= (t.minScore || 0)) return t;
+    return list[list.length - 1];
+  }
+  function assignClass(reason) {
+    const p = st.s.person;
+    const ed = p.education;
+    if (!ed || !ed.inSchool || !tiers().length) return false;
+    const score = placementScore();
+    const tier = tierOfScore(score);
+    ed.classKey = tier.key;
+    ed.classScore = score;
+    st.log('🏫 ' + (reason || '分班结果') + '：分班成绩 ' + score + '，进入「' + tier.name + '」', 'info', tier.emoji);
+    bus.emit('education:class', { from: null, to: tier.key, score: score });
+    return true;
+  }
+  // 调班：target 可为绝对 key 或 '+1'（升一档）/ '-1'（降一档）；why 为日志原因
+  function moveClass(target, why) {
+    const p = st.s.person;
+    const ed = p.education;
+    const list = tiers();
+    if (!ed || !ed.inSchool || !list.length) return false;
+    const cur = currentClass();
+    const curIdx = cur ? list.indexOf(cur) : list.length - 1;
+    let idx;
+    if (target === '+1') idx = curIdx - 1;
+    else if (target === '-1') idx = curIdx + 1;
+    else idx = list.findIndex((t) => t.key === target);
+    idx = u.clamp(idx, 0, list.length - 1);
+    if (idx === curIdx) return false;
+    const tier = list[idx];
+    const promoted = idx < curIdx; // list 按 minScore 降序，下标越小档次越高
+    ed.classKey = tier.key;
+    ed.classScore = placementScore();
+    st.log(
+      (promoted ? '📈 ' : '📉 ') + (why || '调班') + '：「' + (cur ? cur.name : '—') + '」→「' + tier.name + '」',
+      promoted ? 'good' : 'warn', tier.emoji
+    );
+    st.changeVital('mood', promoted ? 3 : -2, promoted ? '升入' + tier.name : '转入' + tier.name);
+    bus.emit('education:class', { from: cur ? cur.key : null, to: tier.key });
+    return true;
+  }
+  // 年度复核：兼容旧存档（无 classKey 则补分班）；成绩冒尖可升档、跌破门槛可能掉档
+  function annualClassReview() {
+    const ed = st.s.person.education;
+    if (!ed.inSchool || (ED.classStages || []).indexOf(ed.stage) < 0) return;
+    if (!ed.classKey) { assignClass('插班分班'); return; }
+    const cur = currentClass();
+    const list = tiers();
+    const idx = cur ? list.indexOf(cur) : list.length - 1;
+    const score = placementScore();
+    ed.classScore = score;
+    if (idx > 0 && score >= (list[idx - 1].minScore || 0) && u.chance(CL.promoteChance != null ? CL.promoteChance : 0.08)) {
+      moveClass(list[idx - 1].key, '成绩冒尖');
+    } else if (score < (cur.minScore || 0) && u.chance(CL.demoteChance != null ? CL.demoteChance : 0.05)) {
+      moveClass(list[Math.min(idx + 1, list.length - 1)].key, '成绩滑落');
+    }
+  }
+  function currentClass() {
+    const ed = st.s.person.education;
+    if (!ed || !ed.classKey) return null;
+    return tierByKey(ed.classKey);
   }
 
   function describeNext(stageKey) {
@@ -205,5 +308,10 @@
       return st.s.person.education;
     },
     highestLevel,
+    // 班级档次（v2.4.0）：供 HUD 展示、抉择事件调班与测试
+    currentClass,
+    classify: tierOfScore,
+    placementScore,
+    moveClass,
   };
 })();

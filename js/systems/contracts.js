@@ -75,9 +75,10 @@
   }
 
   // 认领时给合约提供一份"可自证的上下文"，让 config 里的 test 写得干净
-  function trackCtx(p) {
+  // tracked：到期结算时传入在约期间逐月采样的 track（settleActive 摘下 active 后仍可判定）
+  function trackCtx(p, tracked) {
     const s = S();
-    const t = s.active ? s.active.track : {};
+    const t = tracked || (s.active ? s.active.track : {});
     const used = p.flags || {};
     const sm = (Game.consume && typeof Game.consume.summary === 'function') ? Game.consume.summary() : null;
     return {
@@ -180,7 +181,7 @@
     if (!d) return null;
 
     let ok = false;
-    try { ok = !!d.test(trackCtx(p)); } catch (e) { ok = false; }
+    try { ok = !!d.test(trackCtx(p, act.track)); } catch (e) { ok = false; }
 
     s.history.push({ id: d.id, name: d.name, tag: d.tag, ok: ok, age: curAge() });
 

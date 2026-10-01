@@ -799,7 +799,8 @@ Game.hud = (function () {
     el.eduIcon.textContent = meta.emoji || '👶';
     el.eduStage.textContent = meta.name || '—';
     if (ed.inSchool) {
-      el.eduSub.textContent = '在读 · 第 ' + ed.grade + ' 年（' + ed.level + '）';
+      const cls = Game.education && Game.education.currentClass ? Game.education.currentClass() : null;
+      el.eduSub.textContent = '在读 · 第 ' + ed.grade + ' 年（' + ed.level + '）' + (cls ? ' · ' + cls.emoji + cls.name : '');
       el.eduNext.textContent = '最高学历：' + ed.level + ' · 下一站 ' + ed.nextExam;
     } else if (ed.stage === 'work') {
       el.eduSub.textContent = '已步入社会';

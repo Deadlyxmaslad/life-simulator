@@ -181,6 +181,20 @@ Game.config = {
 
     gaokao: { bachelorLine: 78, collegeLine: 55, maxRetake: 2 },
 
+    // —— 班级档次（v2.4.0）：入学/升学时按"分班成绩"分配班级，每年按成绩浮动调档 ——
+    // 分班成绩 = 智力×1 + (健康-60)×0.15 + 学识进步度加成 + 临场波动(±6)。
+    // 学识进步度 = clamp(学识 ÷ 同时长普通学生预期学识 - 1, -1, 1) × knowledgeBonus：
+    // 低年级天赋定档，之后"跑赢平均线"的努力最多贡献 ±15 分——三档分布长期稳定，
+    // 不会因学识绝对值无界增长而"高年级全员火箭班"。tiers 按 minScore 降序。
+    // 仅 K-12 与中职分班（classStages），大学以上不分班。
+    classStages: ['kg', 'primary', 'junior', 'senior', 'vocational'],
+    classPlacement: { iqWeight: 1.0, healthWeight: 0.15, knowledgeBonus: 15, noise: 6, promoteChance: 0.08, demoteChance: 0.05 },
+    classTiers: [
+      { key: 'rocket',  name: '火箭班', emoji: '🚀', minScore: 82, knowledgeMul: 2.0, examBonus: 0.10, gaokaoBonus: 5, yearlyMood: -0.8, yearlyStress: 2,   desc: '天才云集，节奏飞快，压力也最大' },
+      { key: 'elite',   name: '重点班', emoji: '🏅', minScore: 68, knowledgeMul: 1.5, examBonus: 0.06, gaokaoBonus: 3, yearlyMood: -0.5, yearlyStress: 1.2, desc: '师资更好，同辈你追我赶' },
+      { key: 'regular', name: '普通班', emoji: '📖', minScore: 0,  knowledgeMul: 1.0, examBonus: 0,    gaokaoBonus: 0, yearlyMood: 0,    yearlyStress: 0,   desc: '按部就班，张弛有度' },
+    ],
+
     // 学习/考试如何受其它系统影响（可扩展的耦合点）
     study: {
       knowledgePerYear: 4,   // 在学每年累积学识
@@ -822,6 +836,32 @@ Game.config = {
           { label: '接受返聘，再发光发热', effects: { wealth: 10, health: -3, stress: 4 }, log: '你留下来带了带徒弟，工资单上又多了几年。' },
           { label: '内退，早点开始第二人生', effects: { mood: 6, wealth: -4, health: 3, stress: -6 }, log: '你交还了门禁卡，第二天就去报了太极班。' },
           { label: '干到正式退休', effects: { mood: 1 }, log: '你选择按部就班，站好最后一班岗。' },
+        ],
+      },
+
+      // ============ v2.4.0 · 班级档次（分班/调班）事件 ============
+      // 与 config.education.classTiers 联动：高档班有"内卷压力"，普通班有"冲班机会"；
+      // reclass 指令由 decisions.resolve 转发给 education.moveClass（'+1' 升一档 / '-1' 降一档）。
+      {
+        id: 'class_pressure', title: '🌕 重点班的无形压力', desc: '班里人人刷题到深夜，排名像鞭子一样抽着所有人往前跑。',
+        minAge: 8, maxAge: 25, random: true, repeatable: true, minMonths: 10, weight: 0.9,
+        stages: ['school'],
+        condition: (p) => p.education && p.education.inSchool && ['rocket', 'elite'].indexOf(p.education.classKey) >= 0,
+        choices: [
+          { label: '跟上大部队，继续卷', effects: { knowledge: 3, mood: -3 }, plants: ['burnout'], log: '你把睡眠又削掉一截，排名总算稳住了。' },
+          { label: '保持自己的节奏', effects: { mood: 3, knowledge: 1 }, log: '你按自己的计划走，反而学得更扎实。' },
+          { label: '向父母提出想换班', risk: { chance: 0.5, success: { mood: 5, reclass: '-1' }, failure: { mood: -2 }, goodLog: '父母想了想，同意了——换条赛道不等于认输。', badLog: '"别人都能坚持，就你不行？"谈话不欢而散。' } },
+        ],
+      },
+      {
+        id: 'class_promotion_exam', title: '🎯 一次进重点班的机会', desc: '老师说年级有个调班名额，分班考试过关就能进去，问你要不要试。',
+        minAge: 7, maxAge: 24, random: true, repeatable: true, minMonths: 14, weight: 1.0,
+        stages: ['school'],
+        condition: (p) => p.education && p.education.inSchool && p.education.classKey === 'regular',
+        choices: [
+          { label: '报名，冲刺一把', risk: { chance: 0.45, success: { mood: 5, knowledge: 2, reclass: '+1' }, failure: { mood: -3, knowledge: 1 }, goodLog: '你考进去了！班主任在班会上点名表扬了你。', badLog: '差了几分，老师说"下次还有机会"。' } },
+          { label: '再准备准备，下次再说', effects: { mood: 1, knowledge: 1 }, log: '你把这次机会让给了更渴望它的人。' },
+          { label: '普通班挺好的，不去', effects: { mood: 2 }, log: '鸡头还是凤尾，你选了前者。' },
         ],
       },
 

@@ -152,6 +152,11 @@
     if (ch.openMarket && Game.invest && typeof Game.invest.openMarket === 'function') {
       Game.invest.openMarket(ch.openMarket);
     }
+    // 班级指令（v2.4.0）：把"调班"委托给 education 系统；风险选项的成败分支也可携带
+    var reclassTo = (outcome && outcome.reclass) || ch.reclass;
+    if (reclassTo && Game.education && typeof Game.education.moveClass === 'function') {
+      Game.education.moveClass(reclassTo);
+    }
     var title = ev.fromAction
       ? '行动·' + String(ev.title).replace(/^\S+\s+/, '')
       : '抉择·' + String(ev.title).replace(/^\S+\s+/, '');

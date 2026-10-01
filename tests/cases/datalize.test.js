@@ -109,6 +109,9 @@ describe('📊 人数数据化（datalize）· 关系类外挂', () => {
     g.reset(6806);
     G.datalize.enable();
     growUp(g, 26);
+    // 本测试验证割席机制本身，与主角生死无关：随机序列变化可能让这局早夭，
+    // 而 datalize.ready() 要求存活——强制复活以保持断言聚焦。
+    g.person.alive = true;
     const p = g.person;
     let friendIdx = -1;
     let parentIdx = -1;
