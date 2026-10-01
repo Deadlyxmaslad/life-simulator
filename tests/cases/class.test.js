@@ -161,4 +161,123 @@ describe('学业 · 班级档次 v2.4.0', () => {
     g.runToDeath(130);
     assert.ok(g.state.clock.age > 0, '模拟应正常推进');
   });
+
+  /* --------------------- v2.5.0 班级名册 / 同学互动 --------------------- */
+
+  it('名册生成：规模在档次区间内、男女混合、档次越高成绩越高', () => {
+    g.reset(5013);
+    g.person.intelligence = 98; g.person.health = 100; // 火箭班
+    g.runYears(4);
+    const rocketMates = g.Game.education.classmates();
+    assert.ok(rocketMates.length >= 32 && rocketMates.length <= 40, '火箭班 32-40 人，实际 ' + rocketMates.length);
+    assert.ok(rocketMates.some((m) => m.gender === '女') && rocketMates.some((m) => m.gender === '男'), '男女混合');
+    assert.ok(rocketMates.every((m) => m.name && m.grade >= 65 && m.grade <= 99), '姓名与成绩区间合法');
+
+    g.reset(5014);
+    g.person.intelligence = 18; g.person.health = 40; // 普通班
+    g.runYears(4);
+    const regularMates = g.Game.education.classmates();
+    assert.ok(regularMates.length >= 42 && regularMates.length <= 55, '普通班 42-55 人，实际 ' + regularMates.length);
+    const avg = (arr) => arr.reduce((s, m) => s + m.grade, 0) / arr.length;
+    assert.ok(avg(rocketMates) > avg(regularMates), '火箭班平均成绩应更高');
+  });
+
+  it('同学互动：效果落地、好感累积、冷却拦截', () => {
+    g.reset(5015);
+    g.person.intelligence = 70; g.person.health = 85;
+    g.runYears(9); // 9 岁，小学在读
+    const edu = g.Game.education;
+    assert.ok(edu.classmates().length > 0, '应有名册');
+    const view = edu.classView();
+    const idx = view.classmates.findIndex((m) => m.acts.find((a) => a.id === 'chat' && a.ready));
+    assert.ok(idx >= 0, '应有可闲聊的同学');
+    const mood0 = g.person.mood;
+    const aff0 = view.classmates[idx].aff;
+    const r = edu.interact(idx, 'chat');
+    assert.equal(r.ok, true, '闲聊应成功');
+    assert.ok(g.person.mood >= mood0 + 2, '闲聊应涨心情');
+    assert.equal(edu.classmates()[idx].aff, aff0 + 6, '闲聊好感 +6');
+    const again = edu.interact(idx, 'chat');
+    assert.equal(again.ok, false, '冷却期内再次闲聊应被拦');
+    assert.ok((again.reason || '').indexOf('冷却') >= 0, '拦截原因应提示冷却');
+  });
+
+  it('互动条件门控：请教只找学霸、送礼要有钱', () => {
+    g.reset(5016);
+    g.person.intelligence = 18; g.person.health = 40;
+    g.runYears(9);
+    const edu = g.Game.education;
+    const mates = edu.classmates();
+    const poor = mates.findIndex((m) => m.grade < 80);
+    assert.ok(poor >= 0, '普通班应有成绩一般的同学');
+    const r = edu.interact(poor, 'ask');
+    assert.equal(r.ok, false, '向成绩 <80 的同学请教应被拦');
+    // 送礼：财富不足
+    g.person.wealth = 0;
+    const r2 = edu.interact(0, 'gift');
+    assert.equal(r2.ok, false, '没钱送礼应被拦');
+  });
+
+  it('结为好友：好感门槛、进入社交系统、可被拦', () => {
+    g.reset(5017);
+    g.person.intelligence = 70; g.person.health = 85;
+    g.person.personality = { E: 60, A: 50, C: 50, N: 50, O: 50 };
+    g.runYears(9);
+    const edu = g.Game.education;
+    const met0 = g.person.social.met || 0;
+    const mate = edu.classmates()[0];
+    // 1) 好感不足被拒
+    mate.aff = 30;
+    let r = edu.befriend(mate);
+    assert.equal(r.ok, false, '好感不足应被拒');
+    // 2) 攒够好感 → 成功
+    mate.aff = 80;
+    r = edu.befriend(mate);
+    assert.equal(r.ok, true, '好感 80 应可结为好友');
+    assert.ok(g.person.social.friends.some((f) => f.name === mate.name && f.tag === '同学'), '应进入朋友列表');
+    assert.equal(g.person.social.met, met0 + 1, '结识人数 +1');
+    assert.equal(mate.friend, true, '名册标记好友');
+    // 3) 重复结好被拒
+    r = edu.befriend(mate);
+    assert.equal(r.ok, false, '已是朋友应被拒');
+    // 4) 朋友圈满员被拒（E=60 → 上限 3+5=8，塞满）
+    g.person.social.friends = [];
+    const cap = 3 + Math.floor(60 / 12);
+    for (let i = 0; i < cap; i++) g.person.social.friends.push({ name: '路人' + i, tag: '朋友', quality: 50 });
+    const other = edu.classmates().find((m) => !m.friend);
+    other.aff = 80;
+    r = edu.befriend(other);
+    assert.equal(r.ok, false, '朋友圈满员应被拒');
+  });
+
+  it('调班换集体：名册重新生成；旧存档缺失名册会自动补', () => {
+    g.reset(5018);
+    g.person.intelligence = 18; g.person.health = 40;
+    g.runYears(9);
+    const before = g.Game.education.classmates().map((m) => m.name).join(',');
+    g.Game.education.moveClass('+1'); // 升入重点班
+    const after = g.Game.education.classmates();
+    assert.ok(after.length >= 36 && after.length <= 46, '重点班 36-46 人，实际 ' + after.length);
+    assert.notEqual(after.map((m) => m.name).join(','), before, '调班后应换一批同学');
+    // 旧存档兼容：删名册 → 年度复核补生成
+    delete g.person.education.classmates;
+    g.runYears(1);
+    assert.ok(g.Game.education.classmates().length > 0, '旧存档应自动补名册');
+  });
+
+  it('classView：互动可用性随冷却与好感正确刷新', () => {
+    g.reset(5019);
+    g.person.intelligence = 70; g.person.health = 85;
+    g.runYears(9);
+    const edu = g.Game.education;
+    const v0 = edu.classView();
+    assert.ok(v0 && v0.size === v0.classmates.length, 'classView 应携带名册');
+    const idx = v0.classmates.findIndex((m) => m.acts.find((a) => a.id === 'sport' && a.ready));
+    edu.interact(idx, 'sport');
+    const v1 = edu.classView();
+    const sport = v1.classmates[idx].acts.find((a) => a.id === 'sport');
+    assert.equal(sport.ready, false, '互动后 sport 应进入冷却');
+    const chat = v1.classmates[idx].acts.find((a) => a.id === 'chat');
+    assert.equal(chat.ready, true, 'chat 冷却更短，应仍可用');
+  });
 });

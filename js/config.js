@@ -194,6 +194,25 @@ Game.config = {
       { key: 'elite',   name: '重点班', emoji: '🏅', minScore: 68, knowledgeMul: 1.5, examBonus: 0.06, gaokaoBonus: 3, yearlyMood: -0.5, yearlyStress: 1.2, desc: '师资更好，同辈你追我赶' },
       { key: 'regular', name: '普通班', emoji: '📖', minScore: 0,  knowledgeMul: 1.0, examBonus: 0,    gaokaoBonus: 0, yearlyMood: 0,    yearlyStress: 0,   desc: '按部就班，张弛有度' },
     ],
+    // 班级规模（v2.5.0）：按档次的班额区间（人），取自国内中小学常见班额——
+    // 快班小班教学，普通班大班额
+    classSize: { rocket: [32, 40], elite: [36, 46], regular: [42, 55] },
+    // 同学名册与互动（v2.5.0）：班级面板点击同学名字开展活动
+    classmate: {
+      friendAffinity: 65,                                   // 好感达到该值可结为好友
+      gradeBias: { rocket: [65, 99], elite: [50, 92], regular: [28, 88] }, // 同学成绩分布（随档次水涨船高）
+      genderFemaleRatio: 0.5,
+    },
+    // 互动活动：effects 走 applyEffects（source: '班级·活动名'），affinity 为好感增量；
+    // cd 为对同一位同学同一活动的冷却（月）；cond(p, mate) 不满足则该按钮置灰
+    classActivities: [
+      { id: 'study',   emoji: '📖', name: '一起学习',   cd: 2, affinity: 5,  effects: { knowledge: 3, mood: -1 } },
+      { id: 'chat',    emoji: '💬', name: '课间闲聊',   cd: 1, affinity: 6,  effects: { mood: 3, stress: -3 } },
+      { id: 'sport',   emoji: '⚽', name: '一起运动',   cd: 2, affinity: 8,  effects: { mood: 4, health: 2, immunity: 1, stress: -4 } },
+      { id: 'ask',     emoji: '🙋', name: '请教问题',   cd: 3, affinity: 3,  effects: { knowledge: 5, mood: -1 }, cond: (p, m) => m.grade >= 80, condTip: '只教成绩好的同学' },
+      { id: 'gift',    emoji: '🎁', name: '送个小礼物', cd: 6, affinity: 14, effects: { mood: 2, wealth: -0.5 }, cond: (p) => Game.state.s.clock.age >= 8 && p.wealth >= 1, condTip: '8 岁起且钱包有余' },
+      { id: 'befriend', emoji: '🤝', name: '结为好友',   special: 'befriend' },
+    ],
 
     // 学习/考试如何受其它系统影响（可扩展的耦合点）
     study: {

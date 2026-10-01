@@ -1040,6 +1040,54 @@ footer code { background: var(--panel); padding: 1px 6px; border-radius: 6px; co
 .hb-chip.done { opacity: 0.85; }
 .hb-badges { margin-top: 8px; font-size: 11px; color: var(--muted); }
 
+/* ===================== 班级面板（v2.5.0） ===================== */
+.class-box {
+  margin: 8px 0; padding: 10px 12px;
+  border: 1px solid var(--panel-border); border-radius: 12px;
+  background: var(--panel);
+}
+.cls-head { display: flex; align-items: baseline; gap: 8px; font-size: 14px; font-weight: 600; }
+.cls-note { font-size: 11px; font-weight: 400; color: var(--muted); }
+.cls-body { margin-top: 8px; }
+.cls-roster {
+  display: flex; flex-wrap: wrap; gap: 5px;
+  max-height: 118px; overflow-y: auto;
+  padding-right: 2px;
+}
+.cls-mate {
+  appearance: none; cursor: pointer; font-size: 12px; line-height: 1;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 5px 9px; border-radius: 9px;
+  border: 1px solid var(--panel-border); background: var(--panel); color: var(--text);
+  transition: 0.13s transform, 0.13s background, 0.13s border-color;
+}
+.cls-mate:hover { background: rgba(255, 255, 255, 0.1); border-color: var(--accent); }
+.cls-mate:active { transform: scale(0.95); }
+.cls-mate.cur { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.cls-mate.friend { border-color: rgba(102, 187, 106, 0.55); }
+.cls-g { font-style: normal; font-size: 10px; opacity: 0.75; }
+.cls-g.f { color: #e58fb1; }
+.cls-g.m { color: #7fa8e0; }
+.cls-hint { font-size: 12px; color: var(--muted); margin-top: 8px; }
+.cls-detail { margin-top: 8px; }
+.cls-row { display: flex; align-items: baseline; gap: 8px; font-size: 13px; flex-wrap: wrap; }
+.cls-meta { font-size: 12px; color: var(--muted); }
+.cls-bar {
+  margin-top: 5px; height: 6px; border-radius: 4px; overflow: hidden;
+  background: rgba(255, 255, 255, 0.09); max-width: 320px;
+}
+.cls-bar > i { display: block; height: 100%; background: var(--accent); }
+.cls-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.cls-act {
+  appearance: none; cursor: pointer; font-size: 12px;
+  padding: 5px 10px; border-radius: 9px;
+  border: 1px solid var(--panel-border); background: var(--panel); color: var(--text);
+  transition: 0.13s transform, 0.13s background, 0.13s border-color;
+}
+.cls-act:hover:not(:disabled) { background: rgba(255, 255, 255, 0.1); border-color: var(--accent); }
+.cls-act:active:not(:disabled) { transform: scale(0.95); }
+.cls-act:disabled { opacity: 0.4; cursor: not-allowed; }
+
 /* ===================== 消费模式（v1.5.0） ===================== */
 .consume-box {
   margin: 8px 0; padding: 10px 12px;

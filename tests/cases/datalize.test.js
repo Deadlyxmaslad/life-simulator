@@ -187,13 +187,17 @@ describe('📊 人数数据化（datalize）· 关系类外挂', () => {
     const oldAff = card.affinity;
     const maxUse = D.powers.filter((p) => p.id === 'relabel')[0].maxUse;
     assert.ok(maxUse, '改写标签应配置终身次数');
+    // 逐次对比"本次改写前"的标签：A→B→A 的合法往返不该被误判为失败
+    let latest = oldTags.slice();
     for (let i = 0; i < maxUse; i++) {
       x.dp = D.dpMax;
       assert.ok(G.datalize.cast('relabel', 0), '第 ' + (i + 1) + ' 次改写应成功');
+      const now = G.datalize.card(list[0].obj).tags;
+      assert.notEqual(now.join('/'), latest.join('/'), '第 ' + (i + 1) + ' 次改写应换掉当前标签');
+      latest = now.slice();
     }
     const newTags = G.datalize.card(list[0].obj).tags;
     assert.equal(newTags.length, oldTags.length, '标签数量不变');
-    assert.notEqual(newTags.join('/'), oldTags.join('/'), '核心标签应被改写');
     assert.equal(G.state.s.datalize.once.relabel, maxUse, '应记满终身次数');
     x.dp = D.dpMax;
     const before2 = G.state.s.datalize.dp;

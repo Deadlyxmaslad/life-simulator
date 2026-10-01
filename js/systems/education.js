@@ -190,6 +190,7 @@
     } else {
       ed.classKey = null;
       ed.classScore = null;
+      ed.classmates = [];
     }
     bus.emit('education:change', { stage: key });
   }
@@ -228,7 +229,8 @@
     const tier = tierOfScore(score);
     ed.classKey = tier.key;
     ed.classScore = score;
-    st.log('🏫 ' + (reason || '分班结果') + '：分班成绩 ' + score + '，进入「' + tier.name + '」', 'info', tier.emoji);
+    generateClassmates(tier);
+    st.log('🏫 ' + (reason || '分班结果') + '：分班成绩 ' + score + '，进入「' + tier.name + '」（全班 ' + ed.classmates.length + ' 人）', 'info', tier.emoji);
     bus.emit('education:class', { from: null, to: tier.key, score: score });
     return true;
   }
@@ -250,19 +252,21 @@
     const promoted = idx < curIdx; // list 按 minScore 降序，下标越小档次越高
     ed.classKey = tier.key;
     ed.classScore = placementScore();
+    generateClassmates(tier); // 调班即换集体：重新认识一批新同学
     st.log(
-      (promoted ? '📈 ' : '📉 ') + (why || '调班') + '：「' + (cur ? cur.name : '—') + '」→「' + tier.name + '」',
+      (promoted ? '📈 ' : '📉 ') + (why || '调班') + '：「' + (cur ? cur.name : '—') + '」→「' + tier.name + '」，认识了新同学',
       promoted ? 'good' : 'warn', tier.emoji
     );
     st.changeVital('mood', promoted ? 3 : -2, promoted ? '升入' + tier.name : '转入' + tier.name);
     bus.emit('education:class', { from: cur ? cur.key : null, to: tier.key });
     return true;
   }
-  // 年度复核：兼容旧存档（无 classKey 则补分班）；成绩冒尖可升档、跌破门槛可能掉档
+  // 年度复核：兼容旧存档（无 classKey 则补分班；有名册缺失则补生成）；成绩冒尖可升档、跌破门槛可能掉档
   function annualClassReview() {
     const ed = st.s.person.education;
     if (!ed.inSchool || (ED.classStages || []).indexOf(ed.stage) < 0) return;
     if (!ed.classKey) { assignClass('插班分班'); return; }
+    if (!ed.classmates || !ed.classmates.length) generateClassmates(tierByKey(ed.classKey)); // 旧存档补名册
     const cur = currentClass();
     const list = tiers();
     const idx = cur ? list.indexOf(cur) : list.length - 1;
@@ -278,6 +282,121 @@
     const ed = st.s.person.education;
     if (!ed || !ed.classKey) return null;
     return tierByKey(ed.classKey);
+  }
+
+  /* --------------------- 班级名册 / 同学互动（v2.5.0） --------------------- */
+  function monthIdx() {
+    const c = st.s.clock;
+    return c.year * 12 + c.month;
+  }
+  // 按档次班额生成同学名册：姓名/性别/成绩/初始好感，调班或转段时重生成
+  function generateClassmates(tier) {
+    const ed = st.s.person.education;
+    if (!ed || !tier) return;
+    const sizeC = (ED.classSize || {})[tier.key] || [40, 50];
+    const gradeC = ((ED.classmate || {}).gradeBias || {})[tier.key] || [30, 90];
+    const n = u.randInt(sizeC[0], sizeC[1]);
+    const list = [];
+    for (let i = 0; i < n; i++) {
+      const g = u.chance((ED.classmate || {}).genderFemaleRatio != null ? ED.classmate.genderFemaleRatio : 0.5) ? '女' : '男';
+      const mate = {
+        name: st.rollFullName(g),
+        gender: g,
+        grade: u.randInt(gradeC[0], gradeC[1]),
+        aff: u.randInt(20, 60),   // 初始好感
+        friend: false,
+        cd: {},                    // 活动 → 上次互动的月份序号
+      };
+      // 📊 人数数据化（可选模块）：同学也挂一张隐藏的数据卡
+      if (Game.datalize && typeof Game.datalize.attach === 'function') Game.datalize.attach(mate, 'friend');
+      list.push(mate);
+    }
+    ed.classmates = list;
+  }
+  function classStageOk() {
+    const ed = st.s.person.education;
+    return !!(ed && ed.inSchool && (ED.classStages || []).indexOf(ed.stage) >= 0 && ed.classmates && ed.classmates.length);
+  }
+  function actById(id) {
+    return (ED.classActivities || []).find((a) => a.id === id) || null;
+  }
+  // 活动当前是否可做（冷却 + cond）；返回 null 表示可用，否则返回不可用原因
+  function activityBlocker(act, p, mate) {
+    const last = mate.cd[act.id];
+    if (last != null && monthIdx() - last < (act.cd || 1)) return '冷却中（还差 ' + ((act.cd || 1) - (monthIdx() - last)) + ' 个月）';
+    if (act.cond) {
+      try { if (!act.cond(p, mate)) return act.condTip || '条件未满足'; } catch (e) { return '条件未满足'; }
+    }
+    return null;
+  }
+  // 与同学开展互动：effects 走 applyEffects（进故事线关键词），好感达标可结为好友
+  function interact(mateIdx, activityId) {
+    const p = st.s.person;
+    if (!p.alive || !classStageOk()) return { ok: false, reason: '不在可分班的在校阶段' };
+    const mate = st.s.person.education.classmates[mateIdx];
+    const act = actById(activityId);
+    if (!mate || !act) return { ok: false, reason: '找不到这位同学或该活动' };
+    if (act.special === 'befriend') return befriend(mate);
+    const blocker = activityBlocker(act, p, mate);
+    if (blocker) return { ok: false, reason: blocker };
+    mate.cd[act.id] = monthIdx();
+    if (act.effects) st.applyEffects(Object.assign({}, act.effects, { source: '班级·' + act.name }));
+    const gain = act.affinity || 0;
+    const before = mate.aff;
+    mate.aff = u.clamp(mate.aff + gain, 0, 100);
+    const line = (act.affLine || ('你和' + mate.name + act.name + '了。'));
+    st.log('🏫 ' + line + (gain ? '（好感 +' + (mate.aff - before) + '）' : ''), 'info', act.emoji);
+    bus.emit('education:classmate', { mate: mate, act: act });
+    return { ok: true, mate: mate, act: act };
+  }
+  // 好感到位 → 结识为朋友（进入既有 social 系统，享受维系/挚友/社交支持全套规则）
+  function befriend(mate) {
+    const p = st.s.person;
+    const soc = p.social;
+    const cm = ED.classmate || {};
+    const need = cm.friendAffinity != null ? cm.friendAffinity : 65;
+    if (mate.friend || (soc.friends || []).some((f) => f.name === mate.name)) {
+      return { ok: false, reason: '你们已经是朋友了' };
+    }
+    if (mate.aff < need) return { ok: false, reason: '好感还不够（' + mate.aff + ' / ' + need + '）' };
+    const pers = p.personality;
+    const cap = C.social.friendCapBase + Math.floor((pers ? pers.E : 50) / C.social.friendCapPerE);
+    if (soc.friends.length >= cap) return { ok: false, reason: '朋友圈已经满了（上限 ' + cap + '）' };
+    const friend = {
+      name: mate.name, gender: mate.gender, tag: '同学',
+      since: st.s.clock.age, quality: u.clamp(mate.aff, 40, 92), best: false,
+    };
+    // 📊 人数数据化（可选模块）：真正的朋友挂正式数据卡
+    if (Game.datalize && typeof Game.datalize.attach === 'function') Game.datalize.attach(friend, 'friend');
+    soc.friends.push(friend);
+    soc.met = (soc.met || 0) + 1;
+    mate.friend = true;
+    st.log('🤝 和同学「' + mate.name + '」成了朋友，课桌之间的距离更近了', 'good', '🤝');
+    st.changeVital('mood', 3, '结交好友');
+    bus.emit('social:new', { friend: friend });
+    bus.emit('education:classmate', { mate: mate, act: actById('befriend') });
+    return { ok: true, mate: mate };
+  }
+  // 供 UI 渲染：名册 + 每位同学当前各活动的可用性
+  function classView() {
+    const ed = st.s.person.education;
+    if (!classStageOk()) return null;
+    const p = st.s.person;
+    const tier = currentClass();
+    return {
+      tier: tier,
+      size: ed.classmates.length,
+      classmates: ed.classmates.map((m, i) => ({
+        idx: i, name: m.name, gender: m.gender, grade: m.grade, aff: m.aff, friend: m.friend,
+        acts: (ED.classActivities || []).map((a) => {
+          const blocker = a.special === 'befriend'
+            ? (m.aff < ((ED.classmate || {}).friendAffinity != null ? ED.classmate.friendAffinity : 65)
+              ? '好感还不够' : (m.friend ? '已是朋友' : null))
+            : activityBlocker(a, p, m);
+          return { id: a.id, emoji: a.emoji, name: a.name, ready: !blocker, tip: blocker || a.name };
+        }),
+      })),
+    };
   }
 
   function describeNext(stageKey) {
@@ -313,5 +432,14 @@
     classify: tierOfScore,
     placementScore,
     moveClass,
+    // 班级名册与同学互动（v2.5.0）：供班级面板与测试
+    classmates() {
+      const ed = st.s.person.education;
+      return ed && ed.classmates ? ed.classmates : [];
+    },
+    interact,
+    befriend,
+    classView,
+    activityBlocker,
   };
 })();
