@@ -9,6 +9,7 @@
  * ========================================================================= */
 (function () {
   const el = {};
+  let host = null; // 容器在 build() 里取一次，render/onClick 共用
   let last = 0;
   let sig = '';
   let sel = -1; // 当前选中的同事下标
@@ -20,7 +21,7 @@
   }
 
   function build() {
-    const host = document.getElementById('officeBox');
+    host = document.getElementById('officeBox');
     if (!host) return;
     if (!Game.career || typeof Game.career.officeView !== 'function') { host.style.display = 'none'; return; }
     host.style.display = '';

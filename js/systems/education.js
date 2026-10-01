@@ -380,17 +380,19 @@
     return { ok: true, mate: mate };
   }
   // 供 UI 渲染：名册 + 每位同学当前各活动的可用性
+  // 学段不符的活动直接不显示（而不是置灰），面板只呈现"这个年级会做的事"
   function classView() {
     const ed = st.s.person.education;
     if (!classStageOk()) return null;
     const p = st.s.person;
     const tier = currentClass();
+    const stageActs = (ED.classActivities || []).filter((a) => !a.stages || a.stages.indexOf(ed.stage) >= 0);
     return {
       tier: tier,
       size: ed.classmates.length,
       classmates: ed.classmates.map((m, i) => ({
         idx: i, name: m.name, gender: m.gender, grade: m.grade, aff: m.aff, friend: m.friend,
-        acts: (ED.classActivities || []).map((a) => {
+        acts: stageActs.map((a) => {
           const blocker = a.special === 'befriend'
             ? (m.aff < ((ED.classmate || {}).friendAffinity != null ? ED.classmate.friendAffinity : 65)
               ? '好感还不够' : (m.friend ? '已是朋友' : null))

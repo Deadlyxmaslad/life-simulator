@@ -8,6 +8,7 @@
  * ========================================================================= */
 (function () {
   const el = {};
+  let host = null; // 容器在 build() 里取一次，render/onClick 共用
   let last = 0;
   let sig = '';
   let sel = -1; // 当前选中的同学下标
@@ -19,7 +20,7 @@
   }
 
   function build() {
-    const host = document.getElementById('classBox');
+    host = document.getElementById('classBox');
     if (!host) return;
     if (!Game.education || typeof Game.education.classView !== 'function') { host.style.display = 'none'; return; }
     host.style.display = '';
