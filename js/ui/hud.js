@@ -355,7 +355,7 @@ Game.hud = (function () {
       b.className = 'dchoice' + (ch.risk ? ' risky' : '');
       b.disabled = !enabled;
       b.innerHTML =
-        '<span class="dc-label">' + ch.label + '</span>' +
+        '<span class="dc-label">' + esc(ch.label) + '</span>' +
         (ch.risk ? '<span class="dc-badge">🎲 有风险</span>' : '');
       b.onclick = () => { if (!b.disabled) Game.decisions.choose(i); };
       el.decChoices.appendChild(b);
@@ -526,7 +526,7 @@ Game.hud = (function () {
         (e, i) =>
           '<div class="lb-row' + (e.id === hiId ? ' me' : '') + '">' +
           '<span class="lb-rank">' + (i + 1) + '</span>' +
-          '<span class="lb-name">' + (e.gender === '女' ? '👧' : '👦') + ' ' + e.name + (e.id === hiId ? ' ◀本局' : '') + '</span>' +
+          '<span class="lb-name">' + (e.gender === '女' ? '👧' : '👦') + ' ' + esc(e.name) + (e.id === hiId ? ' ◀本局' : '') + '</span>' +
           '<span class="lb-meta">' + e.age + '岁 · ' + (e.level || '—') + ' · ' + (e.net || 0) + '万 · ' + (e.ach || 0) + '成就' + lbMods(e) + '</span>' +
           '<span class="lb-score">' + e.score + '</span></div>'
       )
@@ -604,8 +604,8 @@ Game.hud = (function () {
           .map(
             (e) =>
               '<i class="tl-dot tl-' + e.kind + '" style="left:' +
-              (e.age / maxAge * 100).toFixed(1) + '%" title="' + e.age + '岁 · ' + e.label + '">' +
-              e.emoji + '</i>'
+              (e.age / maxAge * 100).toFixed(1) + '%" title="' + e.age + '岁 · ' + esc(e.label) + '">' +
+              esc(e.emoji) + '</i>'
           )
           .join('') +
         '</div></div>';
@@ -892,7 +892,7 @@ Game.hud = (function () {
           const gain = (it.value - cost) / cost * 100;
           const cls = gain > 0.5 ? 'up' : gain < -0.5 ? 'down' : '';
           return (
-            '<div class="asset-row"><span class="ar-nm">' + it.emoji + ' ' + it.name +
+            '<div class="asset-row"><span class="ar-nm">' + it.emoji + ' ' + esc(it.name) +
             '<em>' + (it.kind === 'car' ? '车' : '房') + ' · ' + it.buyAge + '岁购入</em></span>' +
             '<span class="ar-val">' + it.value.toFixed(1) + ' 万 <b class="' + cls + '">' +
             (gain >= 0 ? '+' : '') + gain.toFixed(0) + '%</b></span></div>'
