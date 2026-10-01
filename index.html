@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>人生模拟 · Life Sim</title>
+  <meta name="description" content="纯前端人生模拟器：出生、上学、工作、婚育、生老病死，1990 年起的真实纪年沙盒。" />
+  <meta name="theme-color" content="#0e1320" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="人生模拟器" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230e1320'/%3E%3Ctext x='32' y='44' font-size='34' text-anchor='middle'%3E%F0%9F%8C%B1%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div class="brand">
+        <h1>🌱 人生模拟器</h1>
+        <p>出生 · 上学 · 工作 · 婚育 · 生老病死 &nbsp;|&nbsp; 可扩展经营模拟沙盒</p>
+      </div>
+      <div class="controls">
+        <span class="pill paused" id="statusPill"><span class="dot"></span><span id="statusText">未开始</span></span>
+        <button class="btn primary" id="btnPlay">▶ 开始一生</button>
+        <button class="btn" id="btnStep" title="暂停时手动推进一天">⏭ 单步</button>
+        <div class="speed-group" id="speedGroup"></div>
+        <button class="btn toggle on" id="btnAutoPause" title="开启后：每年交界 / 每次事件弹出都会自动暂停，给你停留与参与的空间">⏸ 自动暂停</button>
+        <button class="btn" id="btnBoard" title="人生高分榜">🏆 榜单</button>
+        <button class="btn" id="btnSave" title="存档 / 读档">💾 存档</button>
+        <button class="btn" id="btnAudio" title="音效 / 背景音乐（默认静音）">🔇 静音</button>
+        <button class="btn" id="btnInstall" title="安装到桌面 / 手机（需 http 环境）" hidden>📱 安装</button>
+        <button class="btn danger" id="btnReset">↺ 重新投胎</button>
+      </div>
+    </header>
+
+    <div class="scenario-bar" id="scenarioBar"></div>
+
+    <div class="action-bar" id="actionBar"></div>
+
+    <!-- 人生合约（独立模块渲染，Game.contracts 缺失则隐藏） -->
+    <div class="contract-box" id="contractBox"></div>
+
+    <!-- 月行动点 AP（独立模块渲染，默认关闭则不显示） -->
+    <div class="ap-box" id="apBox"></div>
+
+    <!-- 习惯养成（独立模块渲染，Game.habit 缺失则隐藏） -->
+    <div class="habit-box" id="habitBox"></div>
+
+    <!-- 消费模式（独立模块渲染，Game.consume 缺失则隐藏） -->
+    <div class="consume-box" id="consumeBox"></div>
+
+    <!-- 金手指入口（三个模块各自渲染，缺哪个就不显示哪个） -->
+    <div class="cheat-bar" id="cheatBar"></div>
+
+    <div class="grid">
+      <!-- 左：生命体征 -->
+      <section>
+        <div class="card">
+          <h2>❤️ 生命体征</h2>
+          <div class="vital">
+            <div class="row"><span>健康</span><span class="val" id="healthVal">--</span></div>
+            <div class="bar health"><i id="healthBar"></i></div>
+          </div>
+          <div class="vital">
+            <div class="row"><span>免疫力</span><span class="val" id="immunityVal">--</span></div>
+            <div class="bar immunity"><i id="immunityBar"></i></div>
+          </div>
+          <div class="vital">
+            <div class="row"><span>心情</span><span class="val" id="moodVal">--</span></div>
+            <div class="bar mood"><i id="moodBar"></i></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>🧠 心理状态</h2>
+          <div class="vital">
+            <div class="row"><span>压力 <b class="mn" id="stressLevel">平稳</b></span><span class="val" id="stressVal">--</span></div>
+            <div class="bar stress"><i id="stressBar"></i></div>
+          </div>
+          <div class="vital">
+            <div class="row"><span>抑郁</span><span class="val" id="depVal">--</span></div>
+            <div class="bar depression"><i id="depBar"></i></div>
+          </div>
+          <div class="vital">
+            <div class="row"><span>创伤</span><span class="val" id="traumaVal">--</span></div>
+            <div class="bar trauma"><i id="traumaBar"></i></div>
+          </div>
+          <div class="edu-next" id="mentalNote">心境平稳。</div>
+        </div>
+
+        <div class="card">
+          <h2>🍜 生活需求</h2>
+          <div class="vital">
+            <div class="row"><span>🍚 饱食</span><span class="val" id="needSatietyVal">--</span></div>
+            <div class="bar"><i id="needSatietyBar"></i></div>
+          </div>
+          <div class="vital">
+            <div class="row"><span>😴 精力</span><span class="val" id="needEnergyVal">--</span></div>
+            <div class="bar"><i id="needEnergyBar"></i></div>
+          </div>
+          <div class="vital">
+            <div class="row"><span>🚿 卫生</span><span class="val" id="needHygieneVal">--</span></div>
+            <div class="bar"><i id="needHygieneBar"></i></div>
+          </div>
+          <div class="vital">
+            <div class="row"><span>🎉 娱乐</span><span class="val" id="needFunVal">--</span></div>
+            <div class="bar"><i id="needFunBar"></i></div>
+          </div>
+          <div class="edu-next" id="needsNote">——</div>
+        </div>
+
+        <div class="card">
+          <h2>📅 时钟 / 人生阶段</h2>
+          <div class="clock-big">
+            <span class="age" id="ageNum">0</span>
+            <span class="unit">岁 · <span id="stageText">襁褓幼儿</span></span>
+          </div>
+          <div class="date-line" id="dateLine">1990 年 1 月 1 日</div>
+          <div class="era-chip" id="eraChip">📼 九〇年代初</div>
+          <div class="stage-tag" id="expectTag">预期寿命 · 约 -- 岁</div>
+        </div>
+
+        <div class="card">
+          <h2>🎓 学业系统</h2>
+          <div class="edu-top">
+            <div class="edu-icon" id="eduIcon">👶</div>
+            <div class="edu-meta">
+              <div class="edu-stage" id="eduStage">未入学</div>
+              <div class="edu-sub" id="eduSub">尚未开始学业</div>
+            </div>
+          </div>
+          <div class="vital">
+            <div class="row"><span>智力</span><span class="val" id="iqVal">--</span></div>
+            <div class="bar iq"><i id="iqBar"></i></div>
+          </div>
+          <div class="vital">
+            <div class="row"><span>学识积累</span><span class="val" id="knowledgeVal">0</span></div>
+            <div class="bar knowledge"><i id="knowledgeBar"></i></div>
+          </div>
+          <div class="edu-next" id="eduNext">最高学历：— · 下一站 —</div>
+        </div>
+
+        <div class="card">
+          <h2>🧠 性格系统 · 大五人格</h2>
+          <div class="trait-list" id="traitList"></div>
+          <div class="edu-next" id="traitSummary">—</div>
+        </div>
+
+        <div class="card">
+          <h2>👥 社交 · 朋友圈</h2>
+          <div class="social-stat" id="socialStat">朋友 0</div>
+          <div class="friend-list" id="friendList">
+            <div class="empty">还没到交朋友的年纪。</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 中：天气 + 疾病 -->
+      <section>
+        <div class="card">
+          <h2>🌤️ 天气系统</h2>
+          <div class="weather">
+            <div class="icon" id="weatherIcon">🌈</div>
+            <div>
+              <div class="temp"><span id="tempVal">--</span>°C</div>
+              <div class="tname" id="weatherName">等待生成…</div>
+            </div>
+          </div>
+          <div class="desc" id="weatherDesc">点击「开始一生」，时间开始流动。</div>
+          <div class="env-badge" id="envBadge"></div>
+        </div>
+
+        <div class="card">
+          <h2>🩺 疾病系统 · 当前状况</h2>
+          <div class="disease-list" id="diseaseList">
+            <div class="empty">身体健康，暂无疾病。</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>💼 事业 · 财务</h2>
+          <div class="kv"><span>状态</span><b id="jobStatus">求学中</b></div>
+          <div class="kv"><span>职业</span><b id="jobTitle">—</b></div>
+          <div class="kv"><span>年收入</span><b id="jobIncome">—</b></div>
+          <div class="kv"><span>财产</span><b id="jobWealth">—</b></div>
+          <div class="edu-next" id="jobNote">工龄 —</div>
+        </div>
+
+        <div class="card">
+          <h2>📉 投资 · 资产</h2>
+          <div class="inv-hint" id="invHint">尚未入市——等一次"开户入市"的机会，或等风投事件。</div>
+          <div id="invList"></div>
+          <div class="kv" id="invNetRow" style="display:none"><span>总资产(含持仓)</span><b id="invNet">—</b></div>
+        </div>
+
+        <div class="card">
+          <h2>🏘️ 资产 · 房产车辆</h2>
+          <div class="kv"><span>净资产</span><b id="assetNet">—</b></div>
+          <div class="kv"><span>持有资产</span><b id="assetCount">—</b></div>
+          <div class="kv" id="assetDebtRow" style="display:none"><span>剩余房贷</span><b id="assetDebt">—</b></div>
+          <div id="assetList"></div>
+          <div class="edu-next" id="assetNote">还没有属于自己的房子和车。</div>
+        </div>
+
+        <div class="card">
+          <h2>👨‍👩‍👧 家庭 · 婚恋</h2>
+          <div class="kv"><span>感情状态</span><b id="famStatus">单身</b></div>
+          <div class="kv"><span>配偶</span><b id="famSpouse">—</b></div>
+          <div class="fam-children" id="famChildren">暂无子女</div>
+          <div class="edu-next" id="famNote"></div>
+        </div>
+
+        <div class="card">
+          <h2>🏠 原生家庭 · 出身</h2>
+          <div class="origin-tag" id="originTag">家境 —</div>
+          <div class="parent-rows" id="parentRows"></div>
+          <div class="fam-children" id="siblingInfo">独生子女</div>
+          <div class="edu-next" id="estateNote"></div>
+        </div>
+      </section>
+
+      <!-- 右：故事线 + 事件日志 -->
+      <section>
+        <div class="card">
+          <h2>🧵 人生故事线</h2>
+          <div class="kv"><span>已铺开</span><b id="storyCount">—</b></div>
+          <div class="story-lines" id="storyLines"></div>
+          <div class="edu-next" id="storyNote">你的故事还没有埋下伏笔。</div>
+        </div>
+
+        <div class="card card-log">
+          <h2>📜 人生事件日志</h2>
+          <div class="log" id="log"></div>
+        </div>
+      </section>
+    </div>
+
+    <footer>
+      <b>架构说明：</b>核心用 <code>事件总线 + 系统注册表 + 数据驱动配置</code> 解耦。已内置
+      <b>时钟 / 时代 / 原生家庭 / 性格 / 心理 / 天气 / 疾病 / 寿命 / 学业 / 事业 / 投资 / 婚恋 / 社交 / 因果 / 抉择 / 行动 / 成就</b> 等系统，1990 年生、按月推进、随时代入经营。<br />
+      <b>如何扩展：</b>在 <code>js/systems/</code> 新建一个文件，用
+      <code>Game.systems.create('career', 50).on('year', …).build()</code> 订阅事件即可，
+      再在 index.html 引入；系统之间通过事件（如 <code>education:graduated</code>、<code>disease:new</code>）联动，互不直接调用。
+    </footer>
+  </div>
+
+  <!-- 死亡结算遮罩 -->
+  <div class="overlay" id="overlay">
+    <div class="summary">
+      <div class="rip">🕯️</div>
+      <h2 id="sumTitle">他的一生</h2>
+      <div class="cause" id="sumCause">—</div>
+      <div class="sum-extra" id="sumExtra">—</div>
+      <div class="stats">
+        <div><b id="sumAge">0</b><span>享年（岁）</span></div>
+        <div><b id="sumDays">0</b><span>存活天数</span></div>
+        <div><b id="sumDis">0</b><span>罹患疾病数</span></div>
+        <div><b id="sumPeak">0</b><span>最重病势</span></div>
+      </div>
+      <div class="sum-section">
+        <div class="score-banner">
+          <div class="score-num"><span id="scoreBig">0</span><em>分</em></div>
+          <div class="score-rank" id="scoreRank">—</div>
+        </div>
+        <div class="score-parts" id="scoreParts"></div>
+      </div>
+      <div class="sum-section">
+        <div class="sum-h">👊 金手指三本账 <span class="sum-mini">各自记账 · 互不掺和</span></div>
+        <div class="mods-wrap" id="sumMods"></div>
+      </div>
+      <div class="sum-section">
+        <div class="sum-h">🏅 成就 <span class="sum-mini" id="achCount"></span></div>
+        <div class="ach-row" id="sumAch"></div>
+      </div>
+      <div class="sum-section">
+        <div class="sum-h">📈 人生轨迹</div>
+        <div class="timeline" id="sumTimeline"></div>
+      </div>
+      <div class="sum-section">
+        <div class="sum-h">📉 生命曲线</div>
+        <div id="sumCurve" class="curve"></div>
+        <div class="curve-legend">
+          <span class="lg lg-health">健康</span><span class="lg lg-mood">心情</span>
+          <span class="lg lg-immunity">免疫</span><span class="lg lg-wealth">财富</span>
+        </div>
+      </div>
+      <div class="sum-section">
+        <div class="sum-h">🧵 故事线 · 伏笔回收</div>
+        <div class="story-lines" id="sumStory"></div>
+      </div>
+      <div class="sum-section">
+        <div class="sum-h">⭐ 五维故事积分</div>
+        <div class="radar-wrap" id="sumRadar"></div>
+        <div class="ending-wrap" id="sumEnding"></div>
+      </div>
+      <div class="sum-section">
+        <div class="sum-h">🏷️ 这一生的底色</div>
+        <div class="persona-wrap" id="sumPersona"></div>
+      </div>
+      <div class="sum-section">
+        <div class="sum-h">📋 人生报告卡 <span class="sum-mini" id="reportNote">——</span></div>
+        <div class="report-card" id="sumReport"></div>
+      </div>
+      <div class="sum-section">
+        <div class="sum-h">🕯️ 未竟之事 · 人生留白</div>
+        <div class="roads-wrap" id="sumRoads"></div>
+      </div>
+      <button class="btn primary" id="sumRestart">↺ 重新投胎</button>
+    </div>
+  </div>
+
+  <!-- 存档 / 读档 面板 -->
+  <div class="save-panel" id="savePanel">
+    <div class="sp-head">💾 存档 / 读档 <button class="sp-close" id="spClose">✕</button></div>
+    <div id="spSlots"></div>
+    <div class="sp-tip">存档保存在本浏览器（localStorage），关闭页面后可随时继续。</div>
+  </div>
+
+  <!-- 人生高分榜 -->
+  <div class="overlay board" id="boardPanel">
+    <div class="summary">
+      <div class="rip">🏆</div>
+      <h2>人生高分榜</h2>
+      <div class="cause">历次人生的盖棺定论 · 存于本浏览器</div>
+      <div class="lb-list" id="lbList"></div>
+      <div class="lb-foot">
+        <button class="btn danger" id="lbClear">清空榜单</button>
+        <button class="btn primary" id="lbClose">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 抉择弹窗（出现时暂停推进） -->
+  <div class="overlay decision" id="decision">
+    <div class="dbox">
+      <div class="dbox-emoji" id="decEmoji">🧭</div>
+      <h2 class="dbox-title" id="decTitle">人生岔路</h2>
+      <p class="dbox-desc" id="decDesc">—</p>
+      <div class="dbox-choices" id="decChoices"></div>
+      <div class="dbox-hint">时间暂停中 · 你的选择将改写走向</div>
+    </div>
+  </div>
+
+  <!-- 依赖顺序加载：命名空间 → 工具/总线 → 状态 → 系统基类/循环 → 配置 → 系统 → UI → 主入口 -->
+  <script src="js/core/ns.js"></script>
+  <script src="js/core/bus.js"></script>
+  <script src="js/core/util.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/core/state.js"></script>
+  <script src="js/core/system.js"></script>
+  <script src="js/core/loop.js"></script>
+  <script src="js/systems/scenario.js"></script>
+  <!-- 元进度解锁：最早的玩法层模块（priority 5），先决定"哪些金手指可用" -->
+  <script src="js/systems/meta.js"></script>
+  <script src="js/systems/clock.js"></script>
+  <script src="js/systems/era.js"></script>
+  <script src="js/systems/family.js"></script>
+  <script src="js/systems/personality.js"></script>
+  <script src="js/systems/mental.js"></script>
+  <script src="js/systems/weather.js"></script>
+  <script src="js/systems/needs.js"></script>
+  <script src="js/systems/disease.js"></script>
+  <script src="js/systems/lifespan.js"></script>
+  <script src="js/systems/education.js"></script>
+  <script src="js/systems/career.js"></script>
+  <script src="js/systems/assets.js"></script>
+  <script src="js/systems/invest.js"></script>
+  <script src="js/systems/marriage.js"></script>
+  <script src="js/systems/social.js"></script>
+  <script src="js/systems/consequences.js"></script>
+  <script src="js/systems/decisions.js"></script>
+  <script src="js/systems/actions.js"></script>
+  <script src="js/systems/history.js"></script>
+  <script src="js/systems/achievements.js"></script>
+  <!-- 玩法扩展（v1.3.0）：习惯养成闭环 / 未竟之事，独立于其它系统 -->
+  <script src="js/systems/habit.js"></script>
+  <script src="js/systems/roads.js"></script>
+  <!-- 玩法扩展（v1.5.0）：消费模式（购物 / 一次性消费 / 服务业），独立于其它系统 -->
+  <script src="js/systems/consumption.js"></script>
+  <!-- 玩法层（v1.6.0）：合约 / 倾向标签 / 月行动点，三者彼此独立 -->
+  <script src="js/systems/ap.js"></script>
+  <script src="js/systems/contracts.js"></script>
+  <script src="js/systems/persona.js"></script>
+  <!-- 金手指三模块（v1.2.0）：彼此独立，删掉任意一个其余照常运行 -->
+  <script src="js/systems/hex.js"></script>
+  <script src="js/systems/tycoon.js"></script>
+  <script src="js/systems/datalize.js"></script>
+  <script src="js/systems/score.js"></script>
+  <script src="js/systems/save.js"></script>
+  <script src="js/systems/story.js"></script>
+  <script src="js/systems/report.js"></script>
+  <script src="js/systems/audio.js"></script>
+  <script src="js/ui/pwa.js"></script>
+  <script src="js/ui/layout.js"></script>
+  <script src="js/ui/hud.js"></script>
+  <script src="js/ui/panels.js"></script>
+  <script src="js/ui/habitPanel.js"></script>
+  <script src="js/ui/consumePanel.js"></script>
+  <script src="js/ui/apPanel.js"></script>
+  <script src="js/ui/contractPanel.js"></script>
+  <script src="js/ui/personaPanel.js"></script>
+  <script src="js/ui/roadsPanel.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

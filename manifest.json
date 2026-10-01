@@ -1,0 +1,27 @@
+{
+  "name": "人生模拟器 · LifeSim",
+  "short_name": "人生模拟器",
+  "description": "从出生到死亡的单主角人生模拟：真实纪年、大五人格、因果叙事、五维故事积分。纯前端、离线可玩。",
+  "lang": "zh-CN",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0e1320",
+  "theme_color": "#5ac8fa",
+  "categories": ["games", "simulation", "lifestyle"],
+  "icons": [
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='40' fill='%230e1320'/%3E%3Ccircle cx='96' cy='70' r='26' fill='%235ac8fa'/%3E%3Cpath d='M40 168c0-31 25-52 56-52s56 21 56 52z' fill='%235ac8fa'/%3E%3C/svg%3E",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%230e1320'/%3E%3Ccircle cx='256' cy='188' r='70' fill='%235ac8fa'/%3E%3Cpath d='M96 452c0-84 68-140 160-140s160 56 160 140z' fill='%235ac8fa'/%3E%3C/svg%3E",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
